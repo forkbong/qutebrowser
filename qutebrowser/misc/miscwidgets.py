@@ -284,45 +284,6 @@ class WrapperLayout(QLayout):
         self._container.setFocusProxy(None)  # type: ignore[arg-type]
 
 
-class FullscreenNotification(QLabel):
-
-    """A label telling the user this page is now fullscreen."""
-
-    def __init__(self, parent=None):
-        super().__init__(parent)
-        self.setStyleSheet("""
-            background-color: rgba(50, 50, 50, 80%);
-            color: white;
-            border-radius: 20px;
-            padding: 30px;
-        """)
-
-        all_bindings = config.key_instance.get_reverse_bindings_for('normal')
-        bindings = all_bindings.get('fullscreen --leave')
-        if bindings:
-            key = bindings[0]
-            self.setText("Press {} to exit fullscreen.".format(key))
-        else:
-            self.setText("Page is now fullscreen.")
-
-        self.resize(self.sizeHint())
-        if config.val.content.fullscreen.window:
-            geom = self.parentWidget().geometry()
-        else:
-            geom = QApplication.desktop().screenGeometry(self)
-        self.move((geom.width() - self.sizeHint().width()) // 2, 30)
-
-    def set_timeout(self, timeout):
-        """Hide the widget after the given timeout."""
-        QTimer.singleShot(timeout, self._on_timeout)
-
-    @pyqtSlot()
-    def _on_timeout(self):
-        """Hide and delete the widget."""
-        self.hide()
-        self.deleteLater()
-
-
 class InspectorSplitter(QSplitter):
 
     """Allows putting an inspector inside the tab.
