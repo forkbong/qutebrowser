@@ -52,8 +52,9 @@ class TabWidget(QTabWidget):
     new_tab_requested = pyqtSignal('QUrl', bool, bool)
 
     # Strings for controlling the mute/audible text
-    MUTE_STRING = '[M] '
-    AUDIBLE_STRING = '[A] '
+    # Volume icons require Icons font (ttf-font-icons in Arch)
+    MUTE_STRING = '\uf35a '
+    AUDIBLE_STRING = '\uf357 '
 
     def __init__(self, win_id, parent=None):
         super().__init__(parent)
