@@ -938,7 +938,21 @@ class CommandDispatcher:
         if count is not None:
             index = str(count)
 
-        tabbed_browser, tab = self._resolve_tab_index(index)
+        deleted = objreg.get('deleted-tabs', {})
+        try:
+            win_id, tab_index = (int(n) for n in index.split('/'))
+        except Exception:
+            pass
+        else:
+            if win_id not in deleted:
+                deleted[win_id] = []
+            offset = len([i for i in deleted[win_id] if i < tab_index])
+            index = '/'.join([str(win_id), str(tab_index - offset)])
+        finally:
+            tabbed_browser, tab = self._resolve_tab_index(index)
+
+        if objreg.get('deleted-tabs', None):
+            objreg.delete('deleted-tabs')
 
         window = tabbed_browser.widget.window()
         window.activateWindow()

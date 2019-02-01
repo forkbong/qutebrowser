@@ -453,6 +453,8 @@ class ModeManager(QObject):
         if self.mode == usertypes.KeyMode.normal:
             raise ValueError("Can't leave normal mode!")
         self.leave(self.mode, 'leave current')
+        if objreg.get('deleted-tabs', None):
+            objreg.delete('deleted-tabs')
 
     def handle_event(self, event: QEvent) -> bool:
         """Filter all events based on the currently set mode.
