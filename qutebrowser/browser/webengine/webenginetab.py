@@ -1629,7 +1629,8 @@ class WebEngineTab(browsertab.AbstractTab):
         view.iconChanged.connect(self.icon_changed)
 
         page.loadFinished.connect(self._on_history_trigger)
-        page.loadFinished.connect(self._restore_zoom)
+        page.loadProgress.connect(self._restore_zoom)
+        # page.loadFinished.connect(self._restore_zoom)
         page.loadFinished.connect(self._on_load_finished)
 
         try:
