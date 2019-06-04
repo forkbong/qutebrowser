@@ -102,10 +102,21 @@ def _buffer(skip_win_id=None):
     """
     def delete_buffer(data):
         """Close the selected tab."""
-        win_id, tab_index = data[0].split('/')
+        deleted = objreg.get('deleted-tabs')
+
+        win_id, tab_index = (int(n) for n in data[0].split('/'))
         tabbed_browser = objreg.get('tabbed-browser', scope='window',
-                                    window=int(win_id))
-        tabbed_browser.on_tab_close_requested(int(tab_index) - 1)
+                                    window=win_id)
+
+        if win_id not in deleted:
+            deleted[win_id] = []
+
+        offset = len([i for i in deleted[win_id] if i < tab_index])
+        tabbed_browser.on_tab_close_requested(tab_index - offset - 1)
+
+        deleted[win_id].append(tab_index)
+
+    objreg.register('deleted-tabs', {}, update=True)
 
     model = completionmodel.CompletionModel(column_widths=(6, 40, 54))
 
