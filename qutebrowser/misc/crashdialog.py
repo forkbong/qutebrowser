@@ -19,28 +19,25 @@
 
 """The dialog which gets shown when qutebrowser crashes."""
 
-import re
-import os
-import sys
-import html
-import getpass
-import fnmatch
-import traceback
 import datetime
 import enum
+import fnmatch
+import html
+import os
+import re
+import sys
+import traceback
 from typing import List, Tuple
 
-from PyQt5.QtCore import pyqtSlot, Qt, QSize
-from PyQt5.QtWidgets import (QDialog, QLabel, QTextEdit, QPushButton,
-                             QVBoxLayout, QHBoxLayout, QCheckBox,
-                             QDialogButtonBox, QMessageBox)
+from PyQt5.QtCore import QSize, Qt, pyqtSlot
+from PyQt5.QtWidgets import (QCheckBox, QDialog, QDialogButtonBox, QHBoxLayout, QLabel,
+                             QPushButton, QTextEdit, QVBoxLayout)
 
 import qutebrowser
-from qutebrowser.utils import version, log, utils
-from qutebrowser.misc import (miscwidgets, autoupdate, msgbox, httpclient,
-                              pastebin, objects)
-from qutebrowser.config import config, configfiles
 from qutebrowser.browser import history
+from qutebrowser.config import config, configfiles
+from qutebrowser.misc import miscwidgets, objects
+from qutebrowser.utils import log, utils, version
 
 
 class Result(enum.IntEnum):
@@ -124,13 +121,6 @@ class _CrashDialog(QDialog):
         self.setWindowTitle("Whoops!")
         self.resize(QSize(640, 600))
         self._vbox = QVBoxLayout(self)
-
-        http_client = httpclient.HTTPClient()
-        self._paste_client = pastebin.PastebinClient(http_client, self)
-        self._pypi_client = autoupdate.PyPIVersionClient(self)
-        self._paste_client.success.connect(self.on_paste_success)
-        self._paste_client.error.connect(self.show_error)
-
         self._init_text()
 
         self._init_contact_input()
@@ -211,11 +201,6 @@ class _CrashDialog(QDialog):
         """Initialize the buttons."""
         self._btn_box = QDialogButtonBox()
         self._vbox.addWidget(self._btn_box)
-
-        self._btn_report = QPushButton("Report")
-        self._btn_report.setDefault(True)
-        self._btn_report.clicked.connect(self.on_report_clicked)
-        self._btn_box.addButton(self._btn_report, QDialogButtonBox.AcceptRole)
 
         self._btn_cancel = QPushButton("Don't report")
         self._btn_cancel.setAutoDefault(False)
@@ -312,34 +297,10 @@ class _CrashDialog(QDialog):
         lines.append("========== Debug log ==========")
         lines.append(self._debug_log.toPlainText())
         self._paste_text = '\n\n'.join(lines)
-        try:
-            user = getpass.getuser()
-        except Exception:
-            log.misc.exception("Error while getting user")
-            user = 'unknown'
-        try:
-            # parent: https://p.cmpl.cc/90286958
-            self._paste_client.paste(user, self._get_paste_title(),
-                                     self._paste_text, parent='90286958')
-        except Exception as e:
-            log.misc.exception("Error while paste-binning")
-            exc_text = '{}: {}'.format(e.__class__.__name__, e)
-            self.show_error(exc_text)
-
-    @pyqtSlot()
-    def on_report_clicked(self):
-        """Report and close dialog if report button was clicked."""
-        self._btn_report.setEnabled(False)
-        self._btn_cancel.setEnabled(False)
-        self._btn_report.setText("Reporting...")
-        self.report()
-
-    @pyqtSlot()
-    def on_paste_success(self):
-        """Get the newest version from PyPI when the paste is done."""
-        self._pypi_client.success.connect(self.on_version_success)
-        self._pypi_client.error.connect(self.on_version_error)
-        self._pypi_client.get_version()
+        with open('/tmp/qutecrash.log', 'w') as f:
+            f.write(self._get_paste_title())
+            f.write('\n')
+            f.write(self._paste_text)
 
     @pyqtSlot(str)
     def show_error(self, text):
@@ -352,43 +313,10 @@ class _CrashDialog(QDialog):
         error_dlg.finished.connect(self.finish)
         error_dlg.show()
 
-    @pyqtSlot(str)
-    def on_version_success(self, newest):
-        """Called when the version was obtained from self._pypi_client.
-
-        Args:
-            newest: The newest version as a string.
-        """
-        new_version = utils.parse_version(newest)
-        cur_version = utils.parse_version(qutebrowser.__version__)
-        lines = ['The report has been sent successfully. Thanks!']
-        if new_version > cur_version:
-            lines.append("<b>Note:</b> The newest available version is v{}, "
-                         "but you're currently running v{} - please "
-                         "update!".format(newest, qutebrowser.__version__))
-        text = '<br/><br/>'.join(lines)
-        msgbox.information(self, "Report successfully sent!", text,
-                           on_finished=self.finish, plain_text=False)
-
-    @pyqtSlot(str)
-    def on_version_error(self, msg):
-        """Called when the version was not obtained from self._pypi_client.
-
-        Args:
-            msg: The error message to show.
-        """
-        lines = ['The report has been sent successfully. Thanks!']
-        lines.append("There was an error while getting the newest version: "
-                     "{}. Please check for a new version on "
-                     "<a href=https://www.qutebrowser.org/>qutebrowser.org</a> "
-                     "by yourself.".format(msg))
-        text = '<br/><br/>'.join(lines)
-        msgbox.information(self, "Report successfully sent!", text,
-                           on_finished=self.finish, plain_text=False)
-
     @pyqtSlot()
     def finish(self):
         """Save contact info and close the dialog."""
+        self.report()
         self._save_contact_info()
         self.accept()
 
@@ -470,6 +398,7 @@ class ExceptionCrashDialog(_CrashDialog):
 
     @pyqtSlot()
     def finish(self):
+        self.report()
         self._save_contact_info()
         if self._chk_restore.isChecked():
             self.done(Result.restore)
@@ -543,23 +472,6 @@ class FatalCrashDialog(_CrashDialog):
             except Exception:
                 history_data = traceback.format_exc()
             self._crash_info.append(("History", history_data))
-
-    @pyqtSlot()
-    def on_report_clicked(self):
-        """Prevent empty reports."""
-        if (not self._info.toPlainText().strip() and
-                not self._contact.toPlainText().strip() and
-                self._get_error_type() == 'segv' and
-                self._func == 'qt_mainloop'):
-            msgbox.msgbox(parent=self, title='Empty crash info',
-                          text="Empty reports for fatal crashes are useless "
-                          "and mean I'll spend time deleting reports I could "
-                          "spend on developing qutebrowser instead.\n\nPlease "
-                          "help making qutebrowser better by providing more "
-                          "information, or don't report this.",
-                          icon=QMessageBox.Critical)
-        else:
-            super().on_report_clicked()
 
 
 class ReportDialog(_CrashDialog):
