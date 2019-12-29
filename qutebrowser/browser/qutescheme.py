@@ -476,7 +476,7 @@ def qute_back(url: QUrl) -> _HandlerRet:
     """
     src = jinja.render(
         'back.html',
-        title='Suspended: ' + urllib.parse.unquote(url.fragment()))
+        title='\uf403 ' + urllib.parse.unquote(url.fragment()))
     return 'text/html', src
 
 
